@@ -6,7 +6,7 @@ import random
 import argparse
 import logging
 import kubernetes
-from prometheus_client import start_http_server, Summary, Counter
+from prometheus_client import start_http_server, Counter
 
 logger = logging.getLogger(__name__)
 
