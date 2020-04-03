@@ -25,7 +25,11 @@ def configure_logging(verbosity):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Custom scheduler for Kubernetes PODs")
-    parser.add_argument("name", help="Scheduler name, to avoid collision")
+    parser.add_argument(
+        "--name",
+        default=os.getenv("SCHED_NAME", "rfcustom"),
+        help="Scheduler name, to avoid collision",
+    )
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="Increase verbosity"
     )
@@ -38,7 +42,10 @@ def parse_args():
         "-d", "--daemon", default=False, action="store_true", help="Run forever"
     )
     parser.add_argument(
-        "--delay", default=10, type=float, help="time to wait between schedulings"
+        "--delay",
+        default=float(os.getenv("SCHED_DELAY", 10)),
+        type=float,
+        help="time to wait between schedulings",
     )
     parser.add_argument(
         "-n",

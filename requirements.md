@@ -1,2 +1,0 @@
-kubernetes == 11.0.0
-prometheus-client == 0.7.1 

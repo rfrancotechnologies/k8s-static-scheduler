@@ -20,6 +20,19 @@ After doing this, PODs will stay in `Pending` state.
 
 Then you can label a node to manage the pod with the label `rf.scheduler.<SCHEDULER_NAME>/<POD NAME>` to any value, and the POD will be scheduled always to that node.
 
+## Configuration
+
+It can be configured by command line (check the help) or with these environment variables:
+
+- KUBECONFIG: Path to the kubeconfig file.
+- SCHED_NAME: Scheduler name, to avoid collision.
+- SCHED_DELAY: Time to sleep between checks.
+- SCHED_NAMESPACES: comma-separated namespaces to watch.
+- SCHED_PROMETHEUS_PORT: Port to expose prometheus metrics.
+- SCHED_PROMETHEUS: Disables prometheus metrics if its value is "false".
+
+
+
 ## Full Example
 
 We can create a new kubernetes cluster locally with [kind](https://kind.sigs.k8s.io/). To to this, we will use the file "example/kind.yaml":
@@ -80,7 +93,7 @@ $ . venv/bin/activate
 And then just ran:
 
 ```
-(venv) $ ./scheduler.py test
+(venv) $ ./scheduler.py --name test
 ```
 
 The pod will be scheduled on worker node and the new one will wait for a labeled node:
@@ -104,7 +117,7 @@ kubectl label node kind-worker rf.scheduler.test/web-1=whatever rf.scheduler.tes
 And schedule them:
 
 ```
-(venv) $ ./scheduler.py test
+(venv) $ ./scheduler.py --name test
 ```
 
 It will be required to schedule several times, because web-1 and web-2 will not be Pending at the same time. But finally:
@@ -124,7 +137,7 @@ We will continue the previous example, but now we need two windows.
 In one of them we will run the scheduler. It has two requirements: to be inside our virtual environment and the KUBECONFIG environment variable defined:
 
 ```
-(venv) $ ./scheduler.py test --daemon -vv
+(venv) $ ./scheduler.py --name test --daemon -vv
 ```
 
 In the other window we will remove all previous labels from worker:
@@ -148,7 +161,7 @@ kubectl delete pod -l app=nginx
 After some seconds, the scheduler will do its work:
 
 ```
-(venv) $ $ ./scheduler.py test --daemon -vv
+(venv) $ $ ./scheduler.py --name test --daemon -vv
 2020-04-03 13:29:47,153 - __main__ - INFO - Pod web-0 scheduled on node kind-control-plane
 2020-04-03 13:30:17,293 - __main__ - INFO - Pod web-1 scheduled on node kind-control-plane
 2020-04-03 13:30:27,343 - __main__ - INFO - Pod web-2 scheduled on node kind-control-plane
