@@ -28,13 +28,13 @@ We can create a new kubernetes cluster locally with [kind](https://kind.sigs.k8s
 ```
 $ kind create cluster --config example/kind.yaml
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.15.3) 🖼 
- ✓ Preparing nodes 📦📦 
- ✓ Creating kubeadm config 📜 
- ✓ Starting control-plane 🕹️ 
- ✓ Installing CNI 🔌 
- ✓ Installing StorageClass 💾 
- ✓ Joining worker nodes 🚜 
+ ✓ Ensuring node image (kindest/node:v1.15.3) 🖼
+ ✓ Preparing nodes 📦📦
+ ✓ Creating kubeadm config 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+ ✓ Joining worker nodes 🚜
 Cluster creation complete. You can now use the cluster with:
 
 export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
@@ -160,7 +160,29 @@ Recommended way is installing `pytest` and `pytest-cov` and running them with th
 
 ```
 (venv) $ pip install pytest pytest-cov
-(venv) $ pytest . -v --cov scheduler --cov-report term-missing 
+(venv) $ pytest . -v --cov scheduler --cov-report term-missing
 ```
 
+## Prometheus compliant
 
+By default, the scheduler exposes Prometheus metrics at port 8000, despite it can be modified. Any path will receive the metrics.
+
+In order to check if it is working properly, next indices can be used:
+- schedule_request_total: total scheduling requests
+- schedule_request_success_total: total scheduling success responses
+- schedule_request_failure_total: total scheduling failed responses
+
+Example:
+
+```
+schedule_request_total{namespace="default",node="kind-control-plane",pod="web-0",scheduler="test"} 1.0
+# TYPE schedule_request_created gauge
+schedule_request_created{namespace="default",node="kind-control-plane",pod="web-0",scheduler="test"} 1.5859144423931713e+09
+# HELP schedule_request_success_total Binding successful requests
+# TYPE schedule_request_success_total counter
+schedule_request_success_total{namespace="default",node="kind-control-plane",pod="web-0",scheduler="test"} 1.0
+# TYPE schedule_request_success_created gauge
+schedule_request_success_created{namespace="default",node="kind-control-plane",pod="web-0",scheduler="test"} 1.5859144424013667e+09
+# HELP schedule_request_failure_total Binding failed requests
+# TYPE schedule_request_failure_total counter
+```
