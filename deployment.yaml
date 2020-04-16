@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-scheduler
+  namespace: kube-system
+  labels:
+    app: static-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: static-scheduler
+  template:
+    metadata:
+      labels:
+        app: static-scheduler
+    spec:
+      containers:
+      - name: scheduler
+        image: sched
+        command:
+        - python
+        - /opt/scheduler.py
+        - -d
+        - --kubeconfig=/etc/kubernetes/scheduler.conf
+        - -vvvv
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /etc/kubernetes/scheduler.conf
+          name: kubeconfig
+          readOnly: true
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/scheduler.conf
+          type: FileOrCreate
+        name: kubeconfig
+
