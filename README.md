@@ -18,7 +18,7 @@ Then, you have to mark your StatefulSets to use this scheduler with the `.spec.t
 
 After doing this, PODs will stay in `Pending` state.
 
-Then you can label a node to manage the pod with the label `rf.scheduler.<SCHEDULER_NAME>/<POD NAME>` to any value, and the POD will be scheduled always to that node.
+Then you can label a node to manage the pod with the label `rf.scheduler.<SCHEDULER_NAME>.<NAMESPACE>/<POD NAME>` to empty value, and the POD will be scheduled always to that node.
 
 ## Configuration
 
@@ -27,7 +27,6 @@ It can be configured by command line (check the help) or with these environment 
 - KUBECONFIG: Path to the kubeconfig file.
 - SCHED_NAME: Scheduler name, to avoid collision.
 - SCHED_DELAY: Time to sleep between checks.
-- SCHED_NAMESPACES: comma-separated namespaces to watch.
 - SCHED_PROMETHEUS_PORT: Port to expose prometheus metrics.
 - SCHED_PROMETHEUS: Disables prometheus metrics if its value is "false".
 

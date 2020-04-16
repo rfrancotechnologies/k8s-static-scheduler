@@ -48,13 +48,6 @@ def parse_args():
         help="time to wait between schedulings",
     )
     parser.add_argument(
-        "-n",
-        "--namespace",
-        default=os.getenv("SCHED_NAMESPACES", "default").split(","),
-        nargs="*",
-        help="namespaces to be managed",
-    )
-    parser.add_argument(
         "--prometheus-port",
         default=int(os.getenv("SCHED_PROMETHEUS_PORT", 8000)),
         type=int,
@@ -70,9 +63,8 @@ def parse_args():
 
 
 class Scheduler:
-    def __init__(self, name, namespaces, kubernetes_client):
+    def __init__(self, name, kubernetes_client):
         self.name = name
-        self.namespaces = namespaces
         self.kclient = kubernetes_client
 
     def is_schedulable(self, pod):
@@ -81,19 +73,25 @@ class Scheduler:
                 return False
             if getattr(pod.spec, "node_name", None) is not None:
                 return False
-            if pod.metadata.namespace not in self.namespaces:
-                return False
         except:
             return False
         return True
+
+    def label_for_pod(self, pod):
+        return "rf.scheduler.{scheduler}.{namespace}/{pod}".format(
+            namespace=pod.metadata.namespace,
+            scheduler=self.name,
+            pod=pod.metadata.name,
+        )
 
     def run(self):
         for pod in self.kclient.get_pods():
             if not self.is_schedulable(pod):
                 continue
             podname = pod.metadata.name
+            namespace = pod.metadata.namespace
             logger.debug("Scheduling pod %s" % podname)
-            label = "rf.scheduler.{name}/{pod}".format(name=self.name, pod=podname)
+            label = self.label_for_pod(pod)
 
             nodes = self.kclient.get_nodes()
             random.shuffle(nodes)
@@ -206,7 +204,7 @@ def main():
         start_http_server(args.prometheus_port)
 
     kclient = KubernetesClient(args.name, args.kubeconfig)
-    scheduler = Scheduler(args.name, args.namespace, kclient)
+    scheduler = Scheduler(args.name, kclient)
     while True:
         logger.debug("Running scheduler")
         scheduler.run()
