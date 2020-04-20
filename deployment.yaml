@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: static-scheduler
-  namespace: kube-system
+  namespace: rfscheduler
   labels:
     app: static-scheduler
 spec:
@@ -15,6 +15,7 @@ spec:
       labels:
         app: static-scheduler
     spec:
+      serviceAccountName: rfscheduler
       containers:
       - name: scheduler
         image: sched

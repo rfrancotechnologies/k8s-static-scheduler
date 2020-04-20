@@ -35,8 +35,13 @@ def parse_args():
     )
     parser.add_argument(
         "--kubeconfig",
-        default=os.getenv("KUBECONFIG", "~/.kube/config"),
+        default=os.getenv("KUBECONFIG", ""),
         help="Path to kubeconfig file.",
+    )
+    parser.add_argument(
+        "--incluster-base-path",
+        default=os.getenv("SCHED_INCLUSTER_BASE_PATH", ""),
+        help="Path to directory containing the token.",
     )
     parser.add_argument(
         "-d", "--daemon", default=False, action="store_true", help="Run forever"
@@ -59,7 +64,9 @@ def parse_args():
         default=os.getenv("SCHED_PROMETHEUS", "true") == "false",
         help="Prometheus Exporter disable",
     )
-    return parser.parse_args()
+    result = parser.parse_args()
+
+    return result
 
 
 class Scheduler:
@@ -110,9 +117,30 @@ class Scheduler:
 
 
 class KubernetesClient:
-    def __init__(self, name, kubeconfig):
+    def __init__(self, name, kubeconfig, token_path):
+        token_path = token_path or "/var/run/secrets/kubernetes.io/serviceaccount"
         self.name = name
-        kubernetes.config.load_kube_config(config_file=kubeconfig)
+        if kubeconfig and os.path.exists(kubeconfig):
+            logger.debug("Using configuration from kubeconfig %s" % kubeconfig)
+            kubernetes.config.load_kube_config(config_file=kubeconfig)
+        elif os.path.exists(token_path):
+            logger.debug("Using configuration from token in %s" % token_path)
+            loader = kubernetes.config.incluster_config.InClusterConfigLoader(
+                os.path.join(token_path, "token"), os.path.join(token_path, "ca.crt"),
+            )
+            loader.load_and_set()
+        else:
+            raise Exception("No kubeconfig or token found")
+
+        if True or token_file:
+            loader = kubernetes.config.incluster_config.InClusterConfigLoader(
+                "/var/run/secrets/kubernetes.io/serviceaccount/token",
+                "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            )
+            configuration = kubernetes.client.Configuration()
+            configuration.host = "https://192.168.1.10:6443"
+            loader.load_and_set()
+
         self.v1 = kubernetes.client.CoreV1Api()
         self.client = kubernetes.client.ApiClient()
         self.counter_total = Counter(
@@ -128,7 +156,7 @@ class KubernetesClient:
         self.counter_failure = Counter(
             "schedule_request_failure",
             "Binding failed requests",
-            ["pod", "node", "scheduler", "namespace"],
+            ["pod", "node", "scheduler", "namespace", "http_status", "reason"],
         )
 
     def get_nodes(self):
@@ -138,58 +166,37 @@ class KubernetesClient:
         return self.v1.list_pod_for_all_namespaces().items
 
     def schedule(self, pod, node):
-        podname = pod.metadata.name
         nodename = node.metadata.name
         namespace = pod.metadata.namespace
-        logger.debug(
-            "Scheduling pod {node} on node {node}".format(node=nodename, pod=podname)
-        )
+        podname = pod.metadata.name
+
         self.counter_total.labels(
             pod=podname, node=nodename, scheduler=self.name, namespace=namespace
         ).inc()
-        params = {
-            "apiVersion": "v1",
-            "kind": "Binding",
-            "metadata": {"name": podname,},
-            "target": {"apiVersion": "v1", "kind": "Node", "name": nodename,},
-        }
-        try:
-            r = self.client.call_api(
-                "/api/v1/namespaces/{ns}/pods/{pod}/binding/".format(
-                    ns=namespace, pod=podname
-                ),
-                "POST",
-                body=params,
-            )
-            if 200 <= r[1] <= 201:
-                self.counter_success.labels(
-                    pod=podname, node=nodename, scheduler=self.name, namespace=namespace
-                ).inc()
-                logger.info(
-                    "Pod {pod} scheduled on node {node}".format(
-                        node=nodename, pod=podname
-                    )
-                )
-                return True
-            else:
-                logger.warning(
-                    "Pod {pod} scheduled on node {node}".format(
-                        node=nodename, pod=podname
-                    )
-                )
-                self.counter_failure.labels(
-                    pod=podname, node=nodename, scheduler=self.name, namespace=namespace
-                ).inc()
-        except:
-            logger.exception(
-                "Pod {pod} could not be scheduled on node {node}".format(
-                    node=nodename, pod=podname
-                )
-            )
-            self.counter_failure.labels(
+
+        object_ref = kubernetes.client.V1ObjectReference(kind="Node", name=nodename)
+        metadata = kubernetes.client.V1ObjectMeta(name=podname)
+        body = kubernetes.client.V1Binding(
+            kind="Binding", metadata=metadata, target=object_ref
+        )
+        result = self.v1.create_namespaced_pod_binding(
+            name=podname, namespace=namespace, body=body, _preload_content=False,
+        )
+        if 200 <= result.status < 300:
+            self.counter_success.labels(
                 pod=podname, node=nodename, scheduler=self.name, namespace=namespace
             ).inc()
-        return False
+        else:
+            self.counter_failure.labels(
+                pod=podname,
+                node=nodename,
+                scheduler=self.name,
+                namespace=namespace,
+                http_status=result.status,
+                reason=result.reason,
+            ).inc()
+
+        return result
 
 
 def main():
@@ -203,7 +210,7 @@ def main():
         )
         start_http_server(args.prometheus_port)
 
-    kclient = KubernetesClient(args.name, args.kubeconfig)
+    kclient = KubernetesClient(args.name, args.kubeconfig, args.incluster_base_path)
     scheduler = Scheduler(args.name, kclient)
     while True:
         logger.debug("Running scheduler")

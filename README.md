@@ -25,12 +25,73 @@ Then you can label a node to manage the pod with the label `rf.scheduler.<SCHEDU
 It can be configured by command line (check the help) or with these environment variables:
 
 - KUBECONFIG: Path to the kubeconfig file.
+- SCHED_INCLUSTER_BASE_PATH: Path to search for token and CA. `/var/run/secrets/kubernetes.io/serviceaccount` by default.
 - SCHED_NAME: Scheduler name, to avoid collision.
 - SCHED_DELAY: Time to sleep between checks.
 - SCHED_PROMETHEUS_PORT: Port to expose prometheus metrics.
 - SCHED_PROMETHEUS: Disables prometheus metrics if its value is "false".
 
+### In Cluster
 
+It can be run in-cluster. If the token is mounted in the default directory `/var/run/secrets/kubernetes.io/service`, no aditional configuration is required, so just leave the `KUBECONFIG` and `SCHED_INCLUSTER_BASE_PATH` variables undefined.
+
+Anyways, it will require valid permisions, that can be created with something like this:
+
+```
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rfscheduler
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rfscheduler
+  namespace: rfscheduler
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  name: rfscheduler
+  namespace: rfscheduler
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/binding
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rfscheduler
+roleRef:
+  apiGroup: ""
+  kind: ClusterRole
+  name: rfscheduler
+subjects:
+- kind: ServiceAccount
+  name: rfscheduler
+  namespace: rfscheduler
+```
+
+This example will use the `rfscheduler` namespace, but any other can be used. The example is requiring minimum permissions.
 
 ## Full Example
 
